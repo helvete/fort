@@ -1,21 +1,30 @@
-FROM alpine:3.13 as builder
-
-COPY ./src/hello.f90 hello.f90
+FROM alpine:3.12 as builder
 
 RUN apk upgrade -U && \
 	apk --update add --no-cache \
 	musl-dev \
-	gfortran && \
-	gfortran -o hello hello.f90 && \
+	gfortran \
+	make \
+	fcgi-dev
+
+COPY ./src/hello.f90 hello.f90
+COPY ./docker/makefile makefile
+COPY ./lib lib
+
+RUN	make && \
 	chmod a+x ./hello
 
 
-FROM alpine:3.13
+FROM httpd:2.4-alpine
+
+COPY ./docker/addition.conf /usr/local/apache2/conf/addition.conf
 
 RUN apk upgrade -U && \
 	apk --update add --no-cache \
-	libgfortran
+	libgfortran \
+	apache-mod-fcgid \
+	fcgi && \
+	echo 'Include conf/addition.conf' >> /usr/local/apache2/conf/httpd.conf && \
+	mkdir /application
 
-COPY --from=builder /hello ./hello
-
-CMD tail -f /dev/null
+COPY --from=builder /hello /application/hello
